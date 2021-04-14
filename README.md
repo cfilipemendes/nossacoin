@@ -1,0 +1,3 @@
+# NossaCoin 
+
+Cooperativa's coin.
