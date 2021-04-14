@@ -1,37 +1,20 @@
 package main
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"os"
-	"strconv"
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/gorilla/mux"
 	"github.com/joho/godotenv"
-	"github.com/shopspring/decimal"
 )
 
 //CHAIN
-var NossaChain []Block
-
-type Block struct {
-	Index     int
-	TimeStamp string
-	Data      decimal.Decimal //To Represent decimal values where each right value must not be rounded.
-	Hash      string
-	PrevHash  string
-}
-
-type Message struct {
-	Data decimal.Decimal
-}
 
 func main() {
 	err := godotenv.Load()
@@ -39,53 +22,15 @@ func main() {
 		log.Fatal(err)
 	}
 
+	//Initialize Chain.
+	go func() {
+		genesis := Block{0, time.Now().String(), "Genesis.", "", ""}
+		spew.Dump(genesis)
+		NossaChain = append(NossaChain, genesis)
+	}()
+
 	log.Fatal(run())
 
-}
-
-func calculateHash(block Block) string {
-	record := strconv.Itoa(block.Index) + block.TimeStamp + block.Data.String() + block.PrevHash
-	h := sha256.New()
-	h.Write([]byte(record))
-	hashed := h.Sum(nil)
-	return hex.EncodeToString(hashed)
-
-}
-
-func generateBlock(oldBlock Block, data decimal.Decimal) (Block, error) {
-	var newBlock Block
-
-	t := time.Now()
-
-	newBlock.Index = oldBlock.Index + 1
-	newBlock.TimeStamp = t.String()
-	newBlock.Data = data
-	newBlock.PrevHash = oldBlock.Hash
-	newBlock.Hash = calculateHash(newBlock)
-
-	return newBlock, nil
-}
-
-func isBlockValid(newBlock, oldBlock Block) bool {
-	if oldBlock.Index+1 != newBlock.Index {
-		return false
-	}
-
-	if oldBlock.Hash != newBlock.PrevHash {
-		return false
-	}
-
-	if calculateHash(newBlock) != newBlock.Hash {
-		return false
-	}
-
-	return true
-}
-
-func replaceChain(newBlocks []Block) {
-	if len(newBlocks) > len(NossaChain) {
-		NossaChain = newBlocks
-	}
 }
 
 func run() error {
@@ -124,7 +69,7 @@ func writeNewBlock(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
 	currLastBlock := NossaChain[len(NossaChain)-1]
-	newBlock, err := generateBlock(currLastBlock, m.Data)
+	newBlock, err := addBlock(currLastBlock, m.Data)
 	if err != nil {
 		respondWithJson(w, r, http.StatusInternalServerError, m)
 		return
@@ -141,5 +86,13 @@ func writeNewBlock(w http.ResponseWriter, r *http.Request) {
 }
 
 func respondWithJson(w http.ResponseWriter, r *http.Request, status int, payload interface{}) {
-	//TODO
+	res, err := json.MarshalIndent(payload, "", "  ")
+
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("HTTP 500 - Internal Server Error"))
+		return
+	}
+	w.WriteHeader(status)
+	w.Write(res)
 }
