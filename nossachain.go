@@ -5,6 +5,8 @@ import (
 	"encoding/hex"
 	"strconv"
 	"time"
+
+	"github.com/davecgh/go-spew/spew"
 )
 
 //CHAIN
@@ -22,15 +24,37 @@ type Message struct {
 	Data string
 }
 
-func addBlock(oldBlock Block, data string) (Block, error) {
-	var newBlock Block
+func chainInit() {
+	genesis := Block{0, time.Now().String(), "Genesis.", "", ""}
+	NossaChain = append(NossaChain, genesis)
+	if isDev() {
+		spew.Dump(genesis)
+	}
+}
 
-	t := time.Now()
+func addNewBlock(data string) (Block, error) {
+	newBlock, err := createBlock(NossaChain[len(NossaChain)-1], data)
 
-	newBlock.Index = oldBlock.Index + 1
-	newBlock.TimeStamp = t.String()
-	newBlock.Data = data
-	newBlock.PrevHash = oldBlock.Hash
+	if isBlockValid(newBlock, NossaChain[len(NossaChain)-1]) {
+		updatedNossaChain := append(NossaChain, newBlock)
+		replaceChain(updatedNossaChain)
+
+		if isDev() {
+			spew.Dump(NossaChain)
+		}
+	}
+
+	return newBlock, err
+}
+
+func createBlock(oldBlock Block, data string) (Block, error) {
+
+	newBlock := Block{
+		oldBlock.Index + 1,
+		time.Now().String(),
+		data,
+		oldBlock.Hash,
+		""}
 	newBlock.Hash = calculateHash(newBlock)
 
 	return newBlock, nil
